@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VN FireWatch 3D — Bản đồ nguy cơ cháy Việt Nam</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"/>
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    :root{
+      --bg:#05070d; --glass:rgba(16,23,42,.78); --glass2:rgba(10,15,30,.82);
+      --text:#eef3fc; --muted:#8fa0c2; --accent:#ff7a1a; --accent2:#ff4d6d;
+      --line:rgba(130,150,200,.16);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;font-family:'Segoe UI',system-ui,Roboto,sans-serif;
+      background:var(--bg);color:var(--text);overflow:hidden}
+    #app{display:flex;height:100vh}
+
+    /* ================= Sidebar ================= */
+    #side{width:330px;min-width:330px;height:100%;overflow-y:auto;z-index:20;padding:16px;
+      background:linear-gradient(178deg,rgba(13,19,38,.96),rgba(6,10,22,.97));
+      border-right:1px solid var(--line);backdrop-filter:blur(14px)}
+    #side::-webkit-scrollbar{width:7px}
+    #side::-webkit-scrollbar-thumb{background:#222d4d;border-radius:8px}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+    .brand .logo{font-size:27px;filter:drop-shadow(0 0 10px rgba(255,100,30,.75));animation:fl 2.4s ease-in-out infinite}
+    @keyframes fl{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+    h1{font-size:17.5px;margin:0;line-height:1.25;font-weight:800;
+      background:linear-gradient(90deg,#ffd76b,#ff7a1a,#ff4d6d);
+      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    .sub{color:var(--muted);font-size:12px;margin:6px 0 14px;line-height:1.5}
+    .card{background:var(--glass);border:1px solid var(--line);border-radius:14px;
+      padding:13px;margin-bottom:12px;box-shadow:0 10px 32px rgba(0,0,0,.35)}
+    .card h3{margin:0 0 10px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+    input[type=date],select{width:100%;padding:9px;border-radius:9px;border:1px solid var(--line);
+      background:#0a1122;color:var(--text);font-size:13.5px;outline:none}
+    .btn{width:100%;margin-top:11px;padding:11px;border:0;border-radius:10px;cursor:pointer;
+      background:linear-gradient(90deg,#ff7a1a,#ff4d6d);color:#fff;font-weight:700;font-size:14px;
+      box-shadow:0 6px 20px rgba(255,80,60,.45);transition:transform .12s,box-shadow .12s}
+    .btn:hover{box-shadow:0 8px 26px rgba(255,80,60,.6)} .btn:active{transform:scale(.97)}
+    .btn:disabled{opacity:.55;cursor:default}
+    .quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .quick span{font-size:11px;padding:5px 10px;border:1px solid var(--line);border-radius:20px;
+      cursor:pointer;color:var(--muted);transition:.15s}
+    .quick span:hover{border-color:var(--accent);color:#fff;background:rgba(255,120,30,.14)}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .stat{background:linear-gradient(160deg,#121b34,#0a1226);border:1px solid var(--line);
+      border-radius:11px;padding:10px}
+    .stat .v{font-size:22px;font-weight:800;line-height:1}
+    .stat .l{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:.04em}
+    .grad{height:14px;border-radius:8px;margin:5px 0;
+      background:linear-gradient(90deg,#1a3a6b,#1f8fb0,#3fc57a,#c8e05a,#ffd23f,#ff8c2b,#ff3b2f,#8a0f2e)}
+    .grad-lbl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted)}
+    /* mini chart tháng */
+    .mchart{display:flex;align-items:flex-end;gap:7px;height:74px;padding-top:4px}
+    .mbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+    .mbar .col{width:100%;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,#ff9a3d,#c2410c);
+      opacity:.45;transition:.2s;min-height:4px}
+    .mbar.on .col{opacity:1;box-shadow:0 0 14px rgba(255,140,50,.7)}
+    .mbar .t{font-size:9.5px;color:var(--muted)} .mbar.on .t{color:#ffd76b;font-weight:700}
+    .fi-row{margin:7px 0}
+    .fi-name{font-size:11.5px;display:flex;justify-content:space-between;margin-bottom:4px}
+    .fi-track{height:7px;border-radius:5px;background:#101a32;overflow:hidden}
+    .fi-bar{height:100%;border-radius:5px;background:linear-gradient(90deg,#ffcf6b,#ff7a1a,#ff4d6d)}
+    .muted{color:var(--muted);font-size:11.5px;line-height:1.55}
+    .badge{display:inline-block;background:#0a1122;border:1px solid var(--line);border-radius:6px;
+      padding:2px 8px;font-size:11px;color:var(--muted)}
+    /* Nhãn DỰ BÁO (ẩn mặc định, chỉ hiện khi xem ngày tương lai) */
+    #fcTag{display:none;font-size:10px;font-weight:800;color:#0a0f1e;background:#ffd24a;
+      border-radius:6px;padding:2px 7px;margin-left:4px;vertical-align:middle;
+      box-shadow:0 0 12px rgba(255,190,60,.6);animation:pulse 2s ease-in-out infinite}
+    #fcTag.on{display:inline-block}
+
+    /* ================= Map ================= */
+    .maparea{position:relative;flex:1}
+    #map{position:absolute;inset:0;background:radial-gradient(120% 90% at 60% 10%,#0c1530 0%,#05070d 60%)}
+    .maplibregl-ctrl-attrib{background:rgba(10,15,30,.6)!important;color:#8fa0c2!important;font-size:10px!important}
+    .maplibregl-ctrl-attrib a{color:#8fa0c2!important}
+
+    /* Badge tháng trên bản đồ */
+    #monthBadge{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:30;
+      background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--line);
+      border-radius:15px;padding:9px 26px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+    #monthBadge .m{font-size:21px;font-weight:800;letter-spacing:.02em}
+    #monthBadge .r{font-size:11.5px;color:var(--muted);margin-top:1px}
+
+    /* Nút 3D/2D + la bàn */
+    #viewCtrl{position:absolute;top:16px;right:16px;z-index:30;display:flex;flex-direction:column;gap:8px}
+    .vbtn{width:46px;height:46px;border-radius:12px;border:1px solid var(--line);cursor:pointer;
+      background:var(--glass);backdrop-filter:blur(10px);color:#fff;font-weight:800;font-size:13px;
+      box-shadow:0 8px 22px rgba(0,0,0,.45);transition:.15s}
+    .vbtn:hover{border-color:var(--accent);color:#ffd76b}
+    .vbtn.on{background:linear-gradient(135deg,#ff7a1a,#ff4d6d);border-color:transparent}
+
+    /* Khung ảnh biểu đồ cột 3D */
+    #plot3dWrap{position:absolute;inset:0;z-index:25;display:none;
+      align-items:center;justify-content:center;padding:6px 6px 40px;
+      background:radial-gradient(120% 90% at 55% 12%,#0c1530 0%,#05070d 62%)}
+    #plot3dWrap.on{display:flex}
+    #plot3dImg{max-width:100%;max-height:100%;object-fit:contain;cursor:grab;
+      transition:transform .07s ease-out;transform-origin:center center;
+      filter:drop-shadow(0 18px 45px rgba(0,0,0,.6))}
+    #plot3dImg.grabbing{cursor:grabbing;transition:none}
+    #plot3dLoad{position:absolute;display:flex;flex-direction:column;align-items:center;
+      gap:12px;color:var(--muted);font-size:13px}
+    #plot3dWrap.loading #plot3dImg{opacity:.25}
+    #plot3dWrap:not(.loading) #plot3dLoad{display:none}
+    #p3zoom{position:absolute;right:16px;bottom:74px;display:flex;flex-direction:column;gap:7px;z-index:6}
+    #p3zoom button{width:40px;height:40px;border-radius:11px;border:1px solid var(--line);cursor:pointer;
+      background:var(--glass);backdrop-filter:blur(10px);color:#fff;font-size:18px;font-weight:700;
+      box-shadow:0 8px 22px rgba(0,0,0,.45)}
+    #p3zoom button:hover{border-color:var(--accent);color:#ffd76b}
+    #p3hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:6;
+      font-size:11px;color:var(--muted);background:var(--glass2);backdrop-filter:blur(8px);
+      padding:5px 12px;border-radius:20px;border:1px solid var(--line);white-space:nowrap}
+
+    /* Chip hover */
+    #chip{position:absolute;z-index:40;pointer-events:none;display:none;
+      background:var(--glass2);backdrop-filter:blur(10px);border:1px solid var(--line);
+      border-radius:11px;padding:9px 12px;font-size:12px;box-shadow:0 10px 26px rgba(0,0,0,.55);min-width:155px}
+    #chip .big{font-size:16px;font-weight:800;display:flex;align-items:center;gap:7px}
+    #chip .dot{width:12px;height:12px;border-radius:50%;box-shadow:0 0 8px currentColor}
+    #chip .wx{color:var(--muted);margin-top:4px;line-height:1.55}
+
+    /* Timeline player */
+    #timeline{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;
+      width:min(700px,80%);background:var(--glass);backdrop-filter:blur(14px);
+      border:1px solid var(--line);border-radius:17px;padding:12px 16px;
+      box-shadow:0 14px 40px rgba(0,0,0,.55);display:flex;align-items:center;gap:14px}
+    #playBtn{flex:none;width:46px;height:46px;border-radius:50%;border:0;cursor:pointer;
+      background:linear-gradient(135deg,#ff7a1a,#ff4d6d);color:#fff;font-size:17px;
+      box-shadow:0 6px 20px rgba(255,80,60,.55);transition:transform .12s}
+    #playBtn:active{transform:scale(.92)}
+    .tl-main{flex:1}
+    .tl-top{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:5px}
+    #tl-label{color:#ffd76b;font-weight:700}
+    input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:5px;
+      background:linear-gradient(90deg,#1f8fb0,#3fc57a,#ffd23f,#ff8c2b,#8a0f2e);outline:none}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:19px;height:19px;
+      border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;
+      box-shadow:0 0 12px rgba(255,120,30,.8)}
+    .tl-ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px}
+
+    /* Loading */
+    #load{position:absolute;inset:0;background:rgba(5,7,13,.78);z-index:100;
+      display:none;align-items:center;justify-content:center;flex-direction:column;gap:15px}
+    #load.on{display:flex}
+    .spin{width:48px;height:48px;border:5px solid #1d2947;border-top-color:var(--accent);
+      border-radius:50%;animation:sp .9s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .bar-wrap{width:230px;height:8px;background:#1d2947;border-radius:5px;overflow:hidden}
+    .bar{height:100%;width:0;background:linear-gradient(90deg,#ff7a1a,#ff4d6d);transition:width .25s}
+
+    /* Nhãn QUẦN ĐẢO (Hoàng Sa & Trường Sa) — nổi bật như lãnh thổ */
+    .isl{white-space:nowrap;font-size:12.5px;font-weight:800;color:#fff3c4;
+      text-shadow:0 0 6px #000,0 0 6px #000,0 1px 2px #000;pointer-events:none;text-align:left;
+      display:flex;align-items:center;gap:6px}
+    /* cụm 3 chấm gợi hình quần đảo, bao trong vòng lãnh thổ phát sáng */
+    .isl .cluster{position:relative;width:22px;height:22px;flex:none;
+      border:1.5px dashed rgba(255,214,74,.85);border-radius:50%;
+      box-shadow:0 0 12px rgba(255,190,60,.6);animation:pulse 2.2s ease-in-out infinite}
+    .isl .cluster i{position:absolute;width:5px;height:5px;border-radius:50%;background:#ffd24a;
+      border:1px solid #fff;box-shadow:0 0 6px #ffd24a}
+    .isl .cluster i:nth-child(1){top:3px;left:8px}
+    .isl .cluster i:nth-child(2){top:10px;left:4px}
+    .isl .cluster i:nth-child(3){top:11px;left:13px}
+    @keyframes pulse{0%,100%{box-shadow:0 0 7px rgba(255,190,60,.5)}50%{box-shadow:0 0 18px rgba(255,190,60,.9)}}
+    .isl b{display:block;line-height:1.15}
+    .isl small{display:block;font-size:10px;font-weight:700;color:#ffd24a;opacity:.95}
+    /* Nhãn TỈNH/THÀNH — chấm xanh + tên (DOM marker, luôn hiện, không cần glyph) */
+    .prov{white-space:nowrap;pointer-events:none;display:flex;align-items:center;gap:4px}
+    .prov .pd{width:7px;height:7px;border-radius:50%;background:#5ec8ff;border:1.4px solid #fff;
+      box-shadow:0 0 7px #5ec8ff;flex:none}
+    .prov .pn{font-size:10.5px;font-weight:700;color:#eaf3ff;
+      text-shadow:0 0 3px #000,0 0 3px #000,0 1px 2px #000}
+    /* Thành phố trực thuộc TW: chấm vàng, chữ to hơn */
+    .prov.city .pd{width:9px;height:9px;background:#ffcf4a;box-shadow:0 0 9px #ffcf4a}
+    .prov.city .pn{font-size:12px;color:#fff3c4}
+    /* Số kinh độ / vĩ độ */
+    .gratlab{font-size:9.5px;font-weight:600;color:#9fb0d6;pointer-events:none;
+      text-shadow:0 0 3px #05070d,0 0 3px #05070d}
+    @media(max-width:760px){ #app{flex-direction:column} #side{width:100%;min-width:0;height:auto;max-height:40vh} #timeline{width:94%}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand"><span class="logo">🔥</span><h1>VN FireWatch 3D<br>Bản đồ nguy cơ cháy Việt Nam</h1></div>
+    <div class="sub">Mô hình học máy dự đoán nguy cơ cháy theo thời tiết & thảm thực vật.
+      Chọn ngày <b>quá khứ</b> (phân tích) hoặc <b>tương lai tới +15 ngày</b>
+      (🔮 <b>dự báo</b> — cảnh báo sớm). Bấm <b>3D</b> xem biểu đồ cột.</div>
+
+    <div class="card" style="padding:11px 13px">
+      <div style="display:flex;gap:10px">
+        <div class="stat" style="flex:1;text-align:center">
+          <div class="v" style="font-size:19px;color:#a4fc3c">0.80</div>
+          <div class="l">AUC (kiểm tra)</div>
+        </div>
+        <div class="stat" style="flex:1;text-align:center">
+          <div class="v" style="font-size:19px">119K</div>
+          <div class="l">ĐIỂM CHÁY · 6.5 NĂM</div>
+        </div>
+        <div class="stat" style="flex:1;text-align:center">
+          <div class="v" style="font-size:19px">10</div>
+          <div class="l">ĐẶC TRƯNG</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>⏱ Thời điểm</h3>
+      <label>Ngày quan sát</label>
+      <input type="date" id="date" value="{{ default_date }}" min="{{ min_date }}" max="{{ max_date }}">
+      <label style="margin-top:11px">Độ mịn dữ liệu</label>
+      <select id="step">
+        <option value="0.5" selected>Nhanh (khuyến nghị)</option>
+        <option value="0.3">Vừa (chậm hơn)</option>
+        <option value="0.2">Mịn (rất chậm)</option>
+      </select>
+      <button class="btn" id="go">🔍 Dự đoán ngày này</button>
+      <button class="btn" id="warmfc" style="margin-top:7px;background:linear-gradient(90deg,#28709e,#1f8fb0);font-size:12.5px"
+              title="Chạy mô hình dự báo nguy cơ cháy cho toàn bộ 15 ngày sắp tới">
+        📡 Lấy dự báo nguy cơ 15 ngày tới</button>
+      <div id="warmfc-prog" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;text-align:center"></div>
+      <div class="quick">
+        <span data-fc="0">🔮 Hôm nay</span>
+        <span data-fc="7">🔮 Dự báo +7 ngày</span>
+        <span data-fc="15">🔮 Dự báo +15 ngày</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📊 Kết quả — <span id="curdate" style="color:#ffd76b">–</span>
+        <span id="fcTag">🔮 DỰ BÁO</span></h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="v" id="s-mean">–</div><div class="l">NGUY CƠ TB</div></div>
+        <div class="stat"><div class="v" id="s-max">–</div><div class="l">CAO NHẤT</div></div>
+        <div class="stat"><div class="v" id="s-high">–</div><div class="l">Ô NGUY CƠ CAO</div></div>
+        <div class="stat"><div class="v" id="s-cells">–</div><div class="l">TỔNG SỐ Ô</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>📈 Diễn biến mùa cháy 2026</h3>
+      <div class="mchart" id="mchart"></div>
+    </div>
+
+    <div class="card">
+      <h3>🎨 Thang nguy cơ</h3>
+      <div class="grad"></div>
+      <div class="grad-lbl"><span>0% An toàn</span><span>50%</span><span>100% Nguy hiểm</span></div>
+    </div>
+
+    <div class="card">
+      <h3>🧠 Yếu tố quyết định <span class="badge" id="model-badge">model</span></h3>
+      <div id="fi"></div>
+    </div>
+
+    <div class="muted">Bao gồm <b>quần đảo Hoàng Sa &amp; Trường Sa</b> của Việt Nam 🇻🇳.
+      Nhãn: <b>119.411 điểm cháy</b> NASA FIRMS (2020–2026) · Thời tiết: Open-Meteo (14 ngày) ·
+      Thảm thực vật NDVI: MODIS/Google Earth Engine · Địa hình: NASA SRTM ·
+      Ranh giới lãnh thổ: geoBoundaries v6 (ĐH William &amp; Mary, 2023) + Hoàng Sa/Trường Sa.
+      Kiểm định theo thời gian (train 2020–2024 → test 2025–2026) AUC 0.76.
+      Đây là bản đồ <b>nguy cơ</b>, không phải đám cháy đang xảy ra.</div>
+  </aside>
+
+  <div class="maparea">
+    <div id="map"></div>
+
+    <!-- Khung ảnh BIỂU ĐỒ CỘT 3D (hiện khi bấm 3D) -->
+    <div id="plot3dWrap">
+      <img id="plot3dImg" alt="Biểu đồ cột 3D nguy cơ cháy">
+      <div id="plot3dLoad"><div class="spin"></div><div>Đang dựng biểu đồ 3D…</div></div>
+      <div id="p3zoom">
+        <button id="p3in" title="Phóng to">＋</button>
+        <button id="p3out" title="Thu nhỏ">－</button>
+        <button id="p3rst" title="Về mặc định">⤢</button>
+      </div>
+      <div id="p3hint">Lăn chuột để phóng to · kéo để di chuyển</div>
+    </div>
+
+    <div id="monthBadge"><div class="m" id="mb-m">–</div><div class="r" id="mb-r">–</div></div>
+    <div id="viewCtrl">
+      <button class="vbtn" id="btn3d" title="Xem biểu đồ cột 3D">3D</button>
+      <button class="vbtn on" id="btnProv" title="Bật/tắt tên tỉnh thành">🏷️</button>
+      <button class="vbtn on" id="btnGrid" title="Bật/tắt lưới kinh/vĩ độ">📐</button>
+      <button class="vbtn" id="btnNorth" title="Quay về hướng Bắc">🧭</button>
+    </div>
+    <div id="chip"></div>
+
+    <div id="load"><div class="spin"></div><div id="load-msg">Đang tải bản đồ nguy cơ…</div>
+      <div class="bar-wrap"><div class="bar" id="bar"></div></div></div>
+  </div>
+</div>
+
+<script>
+// ====================================================================
+//  VN FireWatch 3D — MapLibre GL (WebGL) + địa hình DEM + heatmap drape
+// ====================================================================
+const BBOX = {{ bbox|tojson }};   // [latMin, latMax, lonMin, lonMax]
+const COORDS = [
+  [BBOX[2], BBOX[1]], // trên-trái  [lon, lat]
+  [BBOX[3], BBOX[1]], // trên-phải
+  [BBOX[3], BBOX[0]], // dưới-phải
+  [BBOX[2], BBOX[0]], // dưới-trái
+];
+
+let provMarkers=[], gratMarkers=[];   // DOM markers (chấm tỉnh + số tọa độ)
+
+const map = new maplibregl.Map({
+  container:'map',
+  center:[109.4, 15.6],
+  zoom:5.15, pitch:0, bearing:0,   // MẶC ĐỊNH 2D: bản đồ nhiệt hiện ĐẦY ĐỦ, chính xác
+  maxPitch:75, antialias:true, attributionControl:{compact:true},
+  style:{
+    version:8,
+    glyphs:'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',  // font tiếng Việt cho nhãn tỉnh
+    sources:{
+      carto:{type:'raster',
+        tiles:['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+               'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+               'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'],
+        tileSize:256, attribution:'© OpenStreetMap © CARTO · SRTM'},
+      demT:{type:'raster-dem',
+        tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding:'terrarium', tileSize:256, maxzoom:12},
+      demH:{type:'raster-dem',
+        tiles:['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+        encoding:'terrarium', tileSize:256, maxzoom:12},
+    },
+    layers:[
+      {id:'bg', type:'background', paint:{'background-color':'#05070d'}},
+      {id:'base', type:'raster', source:'carto', paint:{'raster-saturation':-0.25,'raster-brightness-max':0.9}},
+      {id:'hills', type:'hillshade', source:'demH',
+        paint:{'hillshade-exaggeration':0.65,
+               'hillshade-shadow-color':'#020409',
+               'hillshade-highlight-color':'#3c4a6e',
+               'hillshade-accent-color':'#0a1226'}},
+    ],
+  },
+});
+
+map.on('load', ()=>{
+  // MẶC ĐỊNH 2D — KHÔNG bật địa hình lúc đầu. Vì MapLibre khi phủ ẢNH lên địa hình
+  // 3D bị cắt mất phần trên của ảnh (lỗi drape) -> để 2D thì bản đồ nhiệt hiện
+  // ĐẦY ĐỦ, chính xác. Địa hình 3D chỉ bật khi người dùng bấm nút "3D".
+
+  // ĐƯỜNG VIỀN BIÊN GIỚI VIỆT NAM (geoBoundaries) — vẽ chính xác từng khúc biên
+  // giới thật (Lũng Cú, Hà Giang, Cao Bằng…), luôn thấy rõ hình đất nước dù xoay
+  // góc nào. Nằm TRÊN lớp nhiệt (lớp nhiệt sẽ chèn xuống dưới bằng beforeId).
+  map.addSource('vnborder', {type:'geojson', data:'/static/geo/vietnam.geojson'});
+  map.addLayer({id:'vnborder-glow', type:'line', source:'vnborder',
+    paint:{'line-color':'#ffe6a0','line-width':5,'line-blur':6,'line-opacity':0.45}});
+  map.addLayer({id:'vnborder-line', type:'line', source:'vnborder',
+    paint:{'line-color':'#fff6d8','line-width':1.7,'line-opacity':0.92}});
+
+  // NHÃN TỈNH/THÀNH (34 đơn vị 2025) — dùng DOM marker (chấm xanh + tên) như quần
+  // đảo, để KHÔNG phụ thuộc font glyph (glyph server hay lỗi -> mất chữ).
+  fetch('/static/geo/vn_provinces.geojson').then(r=>r.json()).then(gj=>{
+    gj.features.forEach(f=>{
+      const [lon,lat]=f.geometry.coordinates, city=f.properties.rank===0;
+      const el=document.createElement('div');
+      el.className='prov'+(city?' city':'');
+      el.innerHTML=`<span class="pd"></span><span class="pn">${f.properties.name}</span>`;
+      provMarkers.push(new maplibregl.Marker({element:el,anchor:'left'}).setLngLat([lon,lat]).addTo(map));
+    });
+  });
+
+  // LƯỚI KINH ĐỘ / VĨ ĐỘ. BBOX=[latMin,latMax,lonMin,lonMax]. Đường = layer; SỐ = DOM marker.
+  const gLines={type:'FeatureCollection',features:[]};
+  function gratLabel(lon,lat,txt){
+    const el=document.createElement('div'); el.className='gratlab'; el.textContent=txt;
+    gratMarkers.push(new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([lon,lat]).addTo(map));
+  }
+  for(let lon=102;lon<=110;lon+=2){
+    gLines.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[lon,BBOX[0]],[lon,BBOX[1]]]}});
+    gratLabel(lon,BBOX[1]-0.35,lon+'°E');           // số kinh độ ở MÉP TRÊN
+  }
+  for(let lat=8;lat<=24;lat+=2){
+    gLines.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[BBOX[2],lat],[BBOX[3],lat]]}});
+    gratLabel(BBOX[3]-0.3,lat,lat+'°N');            // số vĩ độ ở MÉP PHẢI
+  }
+  map.addSource('grat',{type:'geojson',data:gLines});
+  map.addLayer({id:'grat-lines',type:'line',source:'grat',
+    paint:{'line-color':'#6b7ca8','line-width':0.6,'line-opacity':0.30,'line-dasharray':[3,3]}}, 'vnborder-glow');
+
+  init();
+});
+
+// ---------- Quần đảo Hoàng Sa & Trường Sa (Việt Nam) ----------
+function island(lat,lon,name){
+  const el=document.createElement('div');
+  el.className='isl';
+  el.innerHTML=`<span class="cluster"><i></i><i></i><i></i></span>`+
+    `<span><b>${name}</b><small>Việt Nam 🇻🇳</small></span>`;
+  new maplibregl.Marker({element:el,anchor:'left'}).setLngLat([lon,lat]).addTo(map);
+}
+island(16.5,112.0,'Quần đảo Hoàng Sa');
+island(9.6,113.9,'Quần đảo Trường Sa');
+// (Các đảo ven bờ Phú Quốc/Côn Đảo/Bạch Long Vĩ… KHÔNG gắn nhãn theo yêu cầu —
+//  nhưng vẫn được TÔ MÀU NHIỆT nhờ mask lãnh thổ trong landmask.py)
+
+// ---------- Màu nguy cơ (khớp bảng màu "firerisk" của ảnh nhiệt) ----------
+const STOPS=[[0,[26,58,107]],[0.18,[31,143,176]],[0.34,[63,197,122]],
+             [0.5,[200,224,90]],[0.64,[255,210,63]],[0.78,[255,140,43]],
+             [0.9,[255,59,47]],[1,[138,15,46]]];
+function riskColor(p){p=Math.max(0,Math.min(1,p));
+  for(let i=1;i<STOPS.length;i++){if(p<=STOPS[i][0]){
+    const[a,ca]=STOPS[i-1],[b,cb]=STOPS[i],t=(p-a)/(b-a);
+    return`rgb(${ca.map((c,k)=>Math.round(c+(cb[k]-c)*t)).join(',')})`;}}
+  return'rgb(122,4,3)';}
+
+// ---------- 2 lớp heatmap A/B để chuyển cảnh mượt (crossfade) ----------
+let showingA=true, layersReady=false, curGrid=[], curDate=null;
+function ensureHeatLayers(url){
+  if(layersReady) return;
+  // chèn lớp nhiệt XUỐNG DƯỚI đường viền để viền biên giới luôn hiện rõ trên cùng
+  const below = map.getLayer('vnborder-glow') ? 'vnborder-glow' : undefined;
+  for(const k of ['A','B']){
+    map.addSource('heatSrc'+k,{type:'image',url:url,coordinates:COORDS});
+    map.addLayer({id:'heat'+k,type:'raster',source:'heatSrc'+k,
+      paint:{'raster-opacity':k==='A'?0.9:0,
+             'raster-opacity-transition':{duration:650},
+             'raster-resampling':'linear'}}, below);
+  }
+  layersReady=true;
+}
+function setHeat(frame){
+  ensureHeatLayers(frame.image);
+  const nextK=showingA?'B':'A', curK=showingA?'A':'B';
+  map.getSource('heatSrc'+nextK).updateImage({url:frame.image,coordinates:COORDS});
+  // đợi ảnh nạp xong rồi crossfade
+  setTimeout(()=>{
+    map.setPaintProperty('heat'+nextK,'raster-opacity',0.9);
+    map.setPaintProperty('heat'+curK,'raster-opacity',0);
+  },120);
+  showingA=!showingA;
+  curGrid=frame.grid||[];
+  const s=frame.stats;
+  document.getElementById('s-mean').textContent=(s.mean_risk*100).toFixed(0)+'%';
+  document.getElementById('s-max').textContent=(s.max_risk*100).toFixed(0)+'%';
+  document.getElementById('s-high').textContent=s.n_high.toLocaleString('vi');
+  document.getElementById('s-cells').textContent=s.n_cells.toLocaleString('vi');
+  document.getElementById('curdate').textContent=frame.date;
+  document.getElementById('fcTag').classList.toggle('on', !!frame.is_forecast);  // nhãn DỰ BÁO
+  curDate=frame.date; if(typeof refresh3d==='function') refresh3d();  // đồng bộ ảnh 3D theo ngày
+  document.getElementById('mb-m').textContent=frame.label||frame.date;
+  document.getElementById('mb-r').textContent='nguy cơ trung bình '+(s.mean_risk*100).toFixed(0)+'%';
+}
+
+// ---------- Hover: đọc nguy cơ + thời tiết tại điểm ----------
+const chip=document.getElementById('chip');
+map.on('mousemove',e=>{
+  if(!curGrid.length){chip.style.display='none';return;}
+  const {lng,lat}=e.lngLat; let best=null,bd=1e9;
+  for(const g of curGrid){const d=(g.lat-lat)**2+(g.lon-lng)**2; if(d<bd){bd=d;best=g;}}
+  if(!best||bd>0.5){chip.style.display='none';return;}
+  chip.style.left=(e.point.x+18)+'px'; chip.style.top=(e.point.y+18)+'px'; chip.style.display='block';
+  const c=riskColor(best.risk);
+  chip.innerHTML=`<div class="big"><span class="dot" style="background:${c};color:${c}"></span>${(best.risk*100).toFixed(0)}% nguy cơ</div>`+
+    `<div class="wx">🌡 ${best.t??'–'}°C&nbsp; 💧 ${best.h??'–'}%<br>🌬 ${best.w??'–'} km/h&nbsp; 🌧 ${best.p??'–'} mm`+
+    (best.n!=null?`<br>🌿 NDVI ${best.n} (thảm thực vật)`:'')+`</div>`;
+});
+map.getCanvas().addEventListener('mouseleave',()=>chip.style.display='none');
+
+// ---------- Camera tự xoay (chỉ khi ở chế độ 3D) ----------
+let autoRotate=false;
+function spin(){
+  if(!autoRotate) return;
+  map.setBearing(map.getBearing()+0.012);
+  requestAnimationFrame(spin);
+}
+['mousedown','wheel','touchstart','keydown'].forEach(ev=>
+  window.addEventListener(ev,()=>{autoRotate=false;},{once:true,passive:true}));
+
+// ---------- Nút 3D / 2D ----------
+// 2D = bản đồ nhiệt Việt Nam (MapLibre). 3D = BIỂU ĐỒ CỘT 3D (ảnh) theo NGÀY hiện tại.
+let is3d=false, cur3dLoaded=null;
+const p3wrap=document.getElementById('plot3dWrap'), p3img=document.getElementById('plot3dImg');
+async function refresh3d(){                      // tải ảnh 3D cho ngày đang xem
+  if(!is3d || !curDate) return;
+  if(cur3dLoaded===curDate) return;              // đã đúng ngày -> khỏi tải lại
+  p3wrap.classList.add('loading');
+  try{
+    const j=await(await fetch('/api/plot3d?date='+curDate)).json();
+    if(j.image){ p3img.onload=()=>{p3wrap.classList.remove('loading'); p3reset();}; p3img.src=j.image; cur3dLoaded=curDate; }
+    else p3wrap.classList.remove('loading');
+  }catch(e){ p3wrap.classList.remove('loading'); }
+}
+document.getElementById('btn3d').addEventListener('click',function(){
+  is3d=!is3d; this.classList.toggle('on',is3d);
+  p3wrap.classList.toggle('on',is3d);
+  // ẩn các overlay của bản đồ 2D khi xem ảnh 3D (khỏi che tiêu đề ảnh)
+  document.getElementById('monthBadge').style.display=is3d?'none':'';
+  if(is3d){ document.getElementById('chip').style.display='none'; refresh3d(); }
+});
+
+// ----- Zoom + kéo ảnh 3D (vì nó là ảnh tĩnh, cho phóng to xem chi tiết) -----
+let p3s=1, p3x=0, p3y=0, p3drag=false, p3sx=0, p3sy=0;
+function p3apply(){ p3img.style.transform=`translate(${p3x}px,${p3y}px) scale(${p3s})`; }
+function p3reset(){ p3s=1; p3x=0; p3y=0; p3apply(); }
+function p3zoom(f){ p3s=Math.min(6,Math.max(1,p3s*f)); if(p3s===1){p3x=0;p3y=0;} p3apply(); }
+p3wrap.addEventListener('wheel',e=>{ e.preventDefault(); p3zoom(e.deltaY<0?1.15:1/1.15); },{passive:false});
+p3img.addEventListener('mousedown',e=>{ if(p3s<=1)return; p3drag=true; p3img.classList.add('grabbing');
+  p3sx=e.clientX-p3x; p3sy=e.clientY-p3y; e.preventDefault(); });
+window.addEventListener('mousemove',e=>{ if(!p3drag)return; p3x=e.clientX-p3sx; p3y=e.clientY-p3sy; p3apply(); });
+window.addEventListener('mouseup',()=>{ p3drag=false; p3img.classList.remove('grabbing'); });
+p3img.addEventListener('dblclick',p3reset);
+document.getElementById('p3in').addEventListener('click',()=>p3zoom(1.3));
+document.getElementById('p3out').addEventListener('click',()=>p3zoom(1/1.3));
+document.getElementById('p3rst').addEventListener('click',p3reset);
+document.getElementById('btnNorth').addEventListener('click',()=>{
+  autoRotate=false; map.easeTo({bearing:0,duration:800});
+});
+// Nút bật/tắt nhãn tỉnh thành (DOM markers)
+document.getElementById('btnProv').addEventListener('click',function(){
+  const on=!this.classList.contains('on'); this.classList.toggle('on',on);
+  provMarkers.forEach(m=>m.getElement().style.display=on?'flex':'none');
+});
+// Nút bật/tắt lưới kinh/vĩ độ (đường = layer, số = markers)
+document.getElementById('btnGrid').addEventListener('click',function(){
+  const on=!this.classList.contains('on'); this.classList.toggle('on',on);
+  if(map.getLayer('grat-lines')) map.setLayoutProperty('grat-lines','visibility',on?'visible':'none');
+  gratMarkers.forEach(m=>m.getElement().style.display=on?'block':'none');
+});
+
+// ---------- Time-lapse ----------
+let FRAMES=[], idx=3, playing=false, timer=null;
+function showIdx(i){
+  if(!FRAMES.length) return;
+  idx=((i%FRAMES.length)+FRAMES.length)%FRAMES.length;
+  setHeat(FRAMES[idx]);
+  // chọn tháng qua biểu đồ cột trong sidebar (thanh chạy dưới đã bỏ)
+  document.querySelectorAll('.mbar').forEach((b,k)=>b.classList.toggle('on',k===idx));
+}
+function pause(){playing=false;clearInterval(timer);}   // giữ để các nơi khác gọi an toàn
+
+// ---------- Ngày tùy chọn ----------
+function fakeProgress(){const bar=document.getElementById('bar');let w=5;bar.style.width='5%';
+  return setInterval(()=>{w=Math.min(w+Math.random()*7,92);bar.style.width=w+'%';},350);}
+async function customDate(d){
+  const step=parseFloat(document.getElementById('step').value);
+  const load=document.getElementById('load');pause();load.classList.add('on');
+  document.getElementById('load-msg').textContent='Đang lấy thời tiết ngày '+d+' & dựng bản đồ…';
+  const t=fakeProgress();
+  try{
+    const j=await(await fetch(`/api/heatmap?date=${d}&step=${step}`)).json();
+    if(j.error){alert('Lỗi: '+j.error);return;}
+    // LUÔN dùng ngày SERVER TRẢ VỀ (đã kẹp trong khoảng hợp lệ) cho MỌI nơi
+    // -> 2D, 3D, ô nhập ngày đồng bộ tuyệt đối.
+    j.label=j.date;
+    document.getElementById('date').value=j.date;   // đồng bộ ô nhập nếu bị kẹp
+    document.querySelectorAll('.mbar').forEach(b=>b.classList.remove('on'));
+    setHeat(j);                                       // setHeat -> curDate=j.date -> refresh3d
+  }catch(e){alert('Không kết nối được server: '+e);}
+  finally{clearInterval(t);document.getElementById('bar').style.width='100%';
+    setTimeout(()=>load.classList.remove('on'),250);}
+}
+document.getElementById('go').addEventListener('click',()=>customDate(document.getElementById('date').value));
+// Nạp sẵn 15 ngày dự báo (bấm 1 lần trước khi thi) -> tất cả được cache, khỏi tốn quota
+document.getElementById('warmfc').addEventListener('click',async function(){
+  this.disabled=true;
+  const prog=document.getElementById('warmfc-prog'); prog.style.display='block';
+  for(let k=0;k<=15;k++){
+    const t=new Date(); t.setDate(t.getDate()+k);
+    const d=t.toISOString().slice(0,10);
+    prog.textContent=`Đang dự báo ngày ${k+1}/16 (${d})…`;
+    try{ await fetch(`/api/heatmap?date=${d}&step=0.5`); await fetch(`/api/plot3d?date=${d}`); }catch(e){}
+  }
+  prog.textContent='✅ Đã có dự báo nguy cơ cháy cho 15 ngày tới — chọn ngày bất kỳ để xem.';
+  this.disabled=false;
+});
+document.querySelectorAll('.quick span').forEach(el=>el.addEventListener('click',()=>{
+  // Nút DỰ BÁO (data-fc = số ngày tới); nút thường (data-d = ngày cố định)
+  let d=el.dataset.d;
+  if(el.dataset.fc!==undefined){
+    const t=new Date(); t.setDate(t.getDate()+parseInt(el.dataset.fc));
+    d=t.toISOString().slice(0,10);
+  }
+  document.getElementById('date').value=d;
+  const k=FRAMES.findIndex(f=>f.date===d);
+  if(k>=0){pause();showIdx(k);}else customDate(d);
+}));
+
+// ---------- Khởi tạo ----------
+async function loadInfo(){try{const j=await(await fetch('/api/info')).json();
+  document.getElementById('model-badge').textContent=j.model_name;
+  const mx=Math.max(...j.importance.map(d=>d.value));
+  document.getElementById('fi').innerHTML=j.importance.map(d=>`
+    <div class="fi-row"><div class="fi-name"><span>${d.name}</span><span>${d.value}</span></div>
+    <div class="fi-track"><div class="fi-bar" style="width:${(d.value/mx*100).toFixed(0)}%"></div></div></div>`).join('');
+}catch(e){}}
+
+async function init(){
+  document.getElementById('load').classList.add('on');
+  const t=fakeProgress();
+  await loadInfo();
+  try{
+    const j=await(await fetch('/api/timelapse')).json();
+    FRAMES=j.frames||[];
+  }catch(e){FRAMES=[];}
+  clearInterval(t);document.getElementById('bar').style.width='100%';
+  setTimeout(()=>document.getElementById('load').classList.remove('on'),250);
+  if(!FRAMES.length) return;
+  // biểu đồ cột tháng (bấm để nhảy)
+  const mx=Math.max(...FRAMES.map(f=>f.stats.mean_risk));
+  document.getElementById('mchart').innerHTML=FRAMES.map((f,k)=>`
+    <div class="mbar" data-k="${k}" title="${f.label}: nguy cơ TB ${(f.stats.mean_risk*100).toFixed(0)}%">
+      <div class="col" style="height:${Math.max(6,f.stats.mean_risk/mx*58)}px"></div>
+      <div class="t">${f.label.replace('Tháng ','T')}</div></div>`).join('');
+  document.querySelectorAll('.mbar').forEach(b=>b.addEventListener('click',()=>{pause();showIdx(+b.dataset.k);}));
+  // nạp trước toàn bộ khung hình tháng (cho biểu đồ cột sidebar)
+  FRAMES.forEach(f=>{const im=new Image();im.src=f.image;});
+  // mở web ra ở 2D, chỉ zoom nhẹ cho mượt
+  map.easeTo({zoom:5.25,duration:1800});
+  // MẶC ĐỊNH: dự báo NGÀY HIỆN TẠI luôn (không phải tháng 4)
+  customDate(document.getElementById('date').value);
+}
+</script>
+</body>
+</html>

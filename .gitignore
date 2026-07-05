@@ -1,0 +1,25 @@
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# ==== Môi trường ảo ====
+venv/
+.venv/
+env/
+
+# ==== Log & tạm ====
+.logs/
+*.log
+.DS_Store
+
+# ==== File dữ liệu gốc TRÙNG ở thư mục gốc (đã có trong data/) ====
+/fire_data_raw_vietnam_2020_2026.csv
+/fire_labels_vietnam_2020_2026.csv
+/fire_data_raw_vietnam.csv
+/fire_labels_vietnam.csv
+
+# ==== Cache thời tiết Open-Meteo cũ (web đã dùng GEE, tự sinh lại được) ====
+data/cache/weather_cache.csv
+data/cache/weather_cache_v2.csv
