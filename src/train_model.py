@@ -218,21 +218,16 @@ def train_model(verbose=True):
         print(f"  Tập train: {len(X_train):,}  |  Tập test: {len(X_test):,}")
         print()
 
+    # Lấy 2 mô hình NGUYÊN MẪU (chưa train) từ model_prototype.py rồi HUẤN LUYỆN.
+    spw = float((y_train == 0).sum()) / max(1, (y_train == 1).sum())
+    from model_prototype import build_random_forest, build_xgboost
+
     # --- Mô hình 1: Random Forest (chính) ---
-    rf = RandomForestClassifier(
-        n_estimators=400, max_depth=None, min_samples_leaf=2,
-        class_weight="balanced_subsample",
-        random_state=RANDOM_SEED, n_jobs=-1,
-    )
+    rf = build_random_forest()
     rf.fit(X_train, y_train)
 
     # --- Mô hình 2: XGBoost (so sánh) ---
-    spw = float((y_train == 0).sum()) / max(1, (y_train == 1).sum())
-    xgb = XGBClassifier(
-        n_estimators=600, max_depth=7, learning_rate=0.06,
-        subsample=0.9, colsample_bytree=0.9, scale_pos_weight=spw,
-        eval_metric="logloss", random_state=RANDOM_SEED, n_jobs=-1,
-    )
+    xgb = build_xgboost(scale_pos_weight=spw)
     xgb.fit(X_train, y_train)
 
     if verbose:
@@ -259,15 +254,8 @@ def train_model(verbose=True):
             print()
             print("  KIỂM ĐỊNH THEO THỜI GIAN (train 2020–2024 → test 2025–2026):")
             print(f"     Train: {int(tr_mask.sum()):,} điểm | Test: {int(te_mask.sum()):,} điểm")
-        rf_t = RandomForestClassifier(
-            n_estimators=400, min_samples_leaf=2, class_weight="balanced_subsample",
-            random_state=RANDOM_SEED, n_jobs=-1,
-        ).fit(X[tr_mask], y[tr_mask])
-        xgb_t = XGBClassifier(
-            n_estimators=600, max_depth=7, learning_rate=0.06,
-            subsample=0.9, colsample_bytree=0.9,
-            eval_metric="logloss", random_state=RANDOM_SEED, n_jobs=-1,
-        ).fit(X[tr_mask], y[tr_mask])
+        rf_t = build_random_forest().fit(X[tr_mask], y[tr_mask])
+        xgb_t = build_xgboost().fit(X[tr_mask], y[tr_mask])
         _evaluate("RF  (temporal)", rf_t, X[te_mask], y[te_mask])
         _evaluate("XGB (temporal)", xgb_t, X[te_mask], y[te_mask])
 
